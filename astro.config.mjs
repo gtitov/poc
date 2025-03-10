@@ -55,6 +55,27 @@ export default defineConfig({
 					label: 'Рецензии',
 					autogenerate: { directory: 'reviews' },
 				},
+				{
+					label: 'Внешние ресурсы',
+					collapsed: true,
+					items: [
+						{
+							label: "Кафедра картографии и геоинформатики ↗",
+							link: 'https://carto.geogr.msu.ru',
+							attrs: { target: '_blank' },
+						},
+						{
+							label: "Географический факультет ↗",
+							link: 'https://geogr.msu.ru',
+							attrs: { target: '_blank' },
+						},
+						{
+							label: "МГУ имени М. В. Ломоносова ↗",
+							link: 'https://msu.ru',
+							attrs: { target: '_blank' },
+						},
+					],
+				},
 			],
 			editLink: {
 				baseUrl: 'https://github.com/gtitov/poc/edit/main/',
