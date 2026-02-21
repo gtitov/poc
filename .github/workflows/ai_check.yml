@@ -1,0 +1,73 @@
+name: AI Content Scan
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - '**.md'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get Changed Files (API Method)
+        id: changed-files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 1. Ask the GitHub API for every file in this PR
+          # 2. Filter for .md files
+          # 3. Handle the Cyrillic filename correctly by using JSON output
+          FILES=$(gh pr view ${{ github.event.pull_request.number }} --json files --jq '[.files[].path | select(endswith(".md"))] | join(" ")')
+          
+          echo "Checking PR #${{ github.event.pull_request.number }}"
+          
+          if [ -n "$FILES" ]; then
+            echo "all_changed_files=$FILES" >> $GITHUB_OUTPUT
+            echo "any_changed=true" >> $GITHUB_OUTPUT
+            echo "✅ Found files: $FILES"
+          else
+            echo "any_changed=false" >> $GITHUB_OUTPUT
+            echo "❌ No .md files found in this PR."
+          fi
+
+      # 2. Setup Python environment via uv (fastest method in 2026)
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      # 3. Cache the Hugging Face model (1.4GB)
+      # This prevents downloading the weights on every single PR
+      - name: Cache Hugging Face models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: ${{ runner.os }}-hf-radar-model
+          restore-keys: |
+            ${{ runner.os }}-hf-
+
+      - name: Run AI Scan
+        if: steps.changed-files.outputs.any_changed == 'true'
+        env:
+          HF_HOME: ~/.cache/huggingface
+        run: |
+          uv run python ai_check.py "${{ steps.changed-files.outputs.all_changed_files }}"
+
+      # 4. Post/Update the comment on the PR
+      - name: Post PR Comment
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          file-path: comment.md
+          comment-tag: ai-scan-results # Updates the same comment instead of spamming
