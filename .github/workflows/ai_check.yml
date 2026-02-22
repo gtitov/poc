@@ -1,4 +1,4 @@
-name: AI Content Scan
+name: AI Check
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, labeled]
@@ -14,9 +14,16 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      # 1. Checkout YOUR main branch (trusted scripts) to the root
+      - name: Checkout Tooling
+        uses: actions/checkout@v4
+
+      # 2. Checkout the STUDENT'S PR branch into pr_code/
+      - name: Checkout PR Content
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr_code
           fetch-depth: 0
 
       - name: Get Changed Files (API Method)
@@ -24,36 +31,25 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # 1. Get files as a newline-separated list instead of space-separated
-          # 2. We use @sh to handle special characters safely
+          # 1. Get files from API
+          # 2. Prepend 'pr_code/' so the paths match the checkout location
           FILES=$(gh pr view ${{ github.event.pull_request.number }} --json files --jq '.files[].path | select(endswith(".md"))')
           
           if [ -n "$FILES" ]; then
-            # Use a multi-line output parameter to handle filenames with spaces
+            PREFIXED_FILES=$(echo "$FILES" | sed 's|^|pr_code/|')
+            
             echo "all_changed_files<<EOF" >> $GITHUB_OUTPUT
-            echo "$FILES" >> $GITHUB_OUTPUT
+            echo "$PREFIXED_FILES" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
             echo "any_changed=true" >> $GITHUB_OUTPUT
           else
             echo "any_changed=false" >> $GITHUB_OUTPUT
           fi
 
-      # 2. Setup Python environment via uv (fastest method in 2026)
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      # 3. Cache the Hugging Face model (1.4GB)
-      # This prevents downloading the weights on every single PR
-      - name: Cache Hugging Face models
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/huggingface
-          key: ${{ runner.os }}-hf-radar-model
-          restore-keys: |
-            ${{ runner.os }}-hf-
 
       - name: Run AI Scan
         if: steps.changed-files.outputs.any_changed == 'true'
@@ -61,17 +57,15 @@ jobs:
           HF_HOME: ~/.cache/huggingface
           FILES_LIST: ${{ steps.changed-files.outputs.all_changed_files }}
         run: |
-          # Use mapfile to read the multi-line string into a Bash array
-          # This preserves the spaces and Cyrillic characters perfectly.
+          # Parse the multi-line output into a Bash array to handle spaces/Cyrillic
           mapfile -t FILES_ARRAY <<< "$FILES_LIST"
           
-          # Pass the array to Python with proper quoting
+          # Pass the individual quoted paths to your Python script
           uv run python ai_check.py "${FILES_ARRAY[@]}"
 
-      # 4. Post/Update the comment on the PR
       - name: Post PR Comment
         if: steps.changed-files.outputs.any_changed == 'true'
         uses: thollander/actions-comment-pull-request@v3
         with:
           file-path: comment.md
-          comment-tag: ai-scan-results # Updates the same comment instead of spamming
+          comment-tag: ai-scan-results
