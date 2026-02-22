@@ -24,20 +24,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # 1. Ask the GitHub API for every file in this PR
-          # 2. Filter for .md files
-          # 3. Handle the Cyrillic filename correctly by using JSON output
-          FILES=$(gh pr view ${{ github.event.pull_request.number }} --json files --jq '[.files[].path | select(endswith(".md"))] | join(" ")')
-          
-          echo "Checking PR #${{ github.event.pull_request.number }}"
+          # 1. Get files as a newline-separated list instead of space-separated
+          # 2. We use @sh to handle special characters safely
+          FILES=$(gh pr view ${{ github.event.pull_request.number }} --json files --jq '.files[].path | select(endswith(".md"))')
           
           if [ -n "$FILES" ]; then
-            echo "all_changed_files=$FILES" >> $GITHUB_OUTPUT
+            # Use a multi-line output parameter to handle filenames with spaces
+            echo "all_changed_files<<EOF" >> $GITHUB_OUTPUT
+            echo "$FILES" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
             echo "any_changed=true" >> $GITHUB_OUTPUT
-            echo "✅ Found files: $FILES"
           else
             echo "any_changed=false" >> $GITHUB_OUTPUT
-            echo "❌ No .md files found in this PR."
           fi
 
       # 2. Setup Python environment via uv (fastest method in 2026)
@@ -61,8 +59,14 @@ jobs:
         if: steps.changed-files.outputs.any_changed == 'true'
         env:
           HF_HOME: ~/.cache/huggingface
+          FILES_LIST: ${{ steps.changed-files.outputs.all_changed_files }}
         run: |
-          uv run python ai_check.py "${{ steps.changed-files.outputs.all_changed_files }}"
+          # Use mapfile to read the multi-line string into a Bash array
+          # This preserves the spaces and Cyrillic characters perfectly.
+          mapfile -t FILES_ARRAY <<< "$FILES_LIST"
+          
+          # Pass the array to Python with proper quoting
+          uv run python ai_check.py "${FILES_ARRAY[@]}"
 
       # 4. Post/Update the comment on the PR
       - name: Post PR Comment
