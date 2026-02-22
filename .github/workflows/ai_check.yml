@@ -1,0 +1,71 @@
+name: AI Check
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - '**.md'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checkout YOUR main branch (trusted scripts) to the root
+      - name: Checkout Tooling
+        uses: actions/checkout@v4
+
+      # 2. Checkout the STUDENT'S PR branch into pr_code/
+      - name: Checkout PR Content
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr_code
+          fetch-depth: 0
+
+      - name: Get Changed Files (API Method)
+        id: changed-files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 1. Get files from API
+          # 2. Prepend 'pr_code/' so the paths match the checkout location
+          FILES=$(gh pr view ${{ github.event.pull_request.number }} --json files --jq '.files[].path | select(endswith(".md"))')
+          
+          if [ -n "$FILES" ]; then
+            PREFIXED_FILES=$(echo "$FILES" | sed 's|^|pr_code/|')
+            
+            echo "all_changed_files<<EOF" >> $GITHUB_OUTPUT
+            echo "$PREFIXED_FILES" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "any_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "any_changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Run AI Scan
+        if: steps.changed-files.outputs.any_changed == 'true'
+        env:
+          HF_HOME: ~/.cache/huggingface
+          FILES_LIST: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          # Parse the multi-line output into a Bash array to handle spaces/Cyrillic
+          mapfile -t FILES_ARRAY <<< "$FILES_LIST"
+          
+          # Pass the individual quoted paths to your Python script
+          uv run python ai_check.py "${FILES_ARRAY[@]}"
+
+      - name: Post PR Comment
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          file-path: comment.md
+          comment-tag: ai-scan-results
