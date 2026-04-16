@@ -18,6 +18,6 @@ tableOfContents: false
 <details>
 <summary>Использование ИИ</summary>
 
-ИИ использовался
+использовался ChatGPT instant
 
 </details>
