@@ -1,5 +1,5 @@
 ---
-title: Autonomous GIS: the next-generation AI-powered GIS
+title: "Autonomous GIS: the next-generation AI-powered GIS"
 tableOfContents: false
 ---
 > Li Z., Ning H. Autonomous GIS: the next-generation AI-powered GIS //  *International Journal of Digital Earth* . 2023. Vol. 16, № 2. P. 4668–4686. DOI: 10.1080/17538947.2023.2278895.
