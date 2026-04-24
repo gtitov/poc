@@ -4,6 +4,7 @@ tableOfContents: false
 ---
 
 авторы: D. Edler, J. Drews, K. Berr, O. Kühne
+
 опубликована в - Journal of Cartography and Geographic Information (2025) 75:123–135
 
 ***
