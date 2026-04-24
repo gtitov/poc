@@ -1,5 +1,5 @@
 ---
-title: Рецензия на статью Fallibilism and Generative AI in Cartography: Some Fundamental Theoretical Thoughts
+title: Рецензия на статью Fallibilism and Generative AI in Cartography
 tableOfContents: false
 ---
 
