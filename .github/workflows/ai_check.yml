@@ -25,6 +25,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           path: pr_code
           fetch-depth: 0
+          allow-unsafe-pr-checkout: true
 
       - name: Get Changed Files (API Method)
         id: changed-files
